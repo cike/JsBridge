@@ -10,11 +10,9 @@ import android.view.View.OnClickListener;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.widget.Button;
-
-import com.github.lzyzsd.jsbridge.BridgeHandler;
 import com.github.lzyzsd.jsbridge.BridgeWebView;
 import com.github.lzyzsd.jsbridge.CallBackFunction;
-import com.github.lzyzsd.jsbridge.DefaultHandler;
+import com.github.lzyzsd.jsbridge.DefaultJavascriptHandler;
 import com.google.gson.Gson;
 
 public class MainActivity extends Activity implements OnClickListener {
@@ -50,7 +48,7 @@ public class MainActivity extends Activity implements OnClickListener {
 
 		button.setOnClickListener(this);
 
-		webView.setDefaultHandler(new DefaultHandler());
+		webView.setDefaultHandler(new DefaultJavascriptHandler());
 
 		webView.setWebChromeClient(new WebChromeClient() {
 
@@ -72,15 +70,17 @@ public class MainActivity extends Activity implements OnClickListener {
 
 		webView.loadUrl("file:///android_asset/demo.html");
 
-		webView.registerHandler("submitFromWeb", new BridgeHandler() {
+//		webView.registerHandler("submitFromWeb", new BridgeHandler() {
+//
+//			@Override
+//			public void handler(String data, CallBackFunction function) {
+//				Log.i(TAG, "handler = submitFromWeb, data from web = " + data);
+//                function.onCallBack("submitFromWeb exe, response data 我正在通过回调方法传递结果" + Math.random() * 10);
+//			}
+//
+//		});
 
-			@Override
-			public void handler(String data, CallBackFunction function) {
-				Log.i(TAG, "handler = submitFromWeb, data from web = " + data);
-                function.onCallBack("submitFromWeb exe, response data 中文 from Java");
-			}
-
-		});
+		webView.registerHandler(new JavascriptNativeMethodTest());
 
         User user = new User();
         Location location = new Location();

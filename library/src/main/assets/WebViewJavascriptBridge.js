@@ -26,6 +26,7 @@
 
     //set default messageHandler  初始化默认的消息线程
     function init(messageHandler) {
+        debugger;
         if (WebViewJavascriptBridge._messageHandler) {
             throw new Error('WebViewJavascriptBridge.init called twice');
         }
@@ -46,6 +47,7 @@
 
     // 注册线程 往数组里面添加值
     function registerHandler(handlerName, handler) {
+        debugger;
         messageHandlers[handlerName] = handler;
     }
     // 调用线程

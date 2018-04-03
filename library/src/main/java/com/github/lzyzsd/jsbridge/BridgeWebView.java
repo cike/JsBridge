@@ -2,6 +2,7 @@ package com.github.lzyzsd.jsbridge;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -9,6 +10,11 @@ import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.webkit.WebView;
 
+
+import com.github.lzyzsd.jsbridge.model.InjectModel;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,9 +26,9 @@ public class BridgeWebView extends WebView implements WebViewJavascriptBridge {
 	private final String TAG = "BridgeWebView";
 
 	public static final String toLoadJs = "WebViewJavascriptBridge.js";
-	Map<String, CallBackFunction> responseCallbacks = new HashMap<String, CallBackFunction>();
-	Map<String, BridgeHandler> messageHandlers = new HashMap<String, BridgeHandler>();
-	BridgeHandler defaultHandler = new DefaultHandler();
+	Map<String, CallBackFunction> responseCallbacks = new HashMap<>();
+	Map<String, InjectModel> jsMethodMap = new HashMap<>();
+	DefaultJavascriptHandler defaultHandler = new DefaultJavascriptHandler();
 
 	private List<Message> startupMessage = new ArrayList<Message>();
 
@@ -57,7 +63,7 @@ public class BridgeWebView extends WebView implements WebViewJavascriptBridge {
 	 *            default handler,handle messages send by js without assigned handler name,
      *            if js message has handler name, it will be handled by named handlers registered by native
 	 */
-	public void setDefaultHandler(BridgeHandler handler) {
+	public void setDefaultHandler(DefaultJavascriptHandler handler) {
        this.defaultHandler = handler;
 	}
 
@@ -140,7 +146,8 @@ public class BridgeWebView extends WebView implements WebViewJavascriptBridge {
      */
 	void dispatchMessage(Message m) {
         String messageJson = m.toJson();
-        //escape special characters for json string  为json字符串转义特殊字符
+		messageJson = Uri.encode(messageJson);
+		//escape special characters for json string  为json字符串转义特殊字符
         messageJson = messageJson.replaceAll("(\\\\)([^utrn])", "\\\\\\\\$1$2");
         messageJson = messageJson.replaceAll("(?<=[^\\\\])(\")", "\\\\\"");
         String javascriptCommand = String.format(BridgeUtil.JS_HANDLE_MESSAGE_FROM_JAVA, messageJson);
@@ -171,6 +178,7 @@ public class BridgeWebView extends WebView implements WebViewJavascriptBridge {
 						return;
 					}
 					for (int i = 0; i < list.size(); i++) {
+						boolean handleState = false;
 						Message m = list.get(i);
 						String responseId = m.getResponseId();
 						// 是否是response  CallBackFunction
@@ -201,15 +209,12 @@ public class BridgeWebView extends WebView implements WebViewJavascriptBridge {
 									}
 								};
 							}
-							// BridgeHandler执行
-							BridgeHandler handler;
 							if (!TextUtils.isEmpty(m.getHandlerName())) {
-								handler = messageHandlers.get(m.getHandlerName());
-							} else {
-								handler = defaultHandler;
+								handleState = JSAnnotationUtil.getInstance().invoke(jsMethodMap.get(m.getHandlerName()), m.getData(), responseFunction );
 							}
-							if (handler != null){
-								handler.handler(m.getData(), responseFunction);
+
+							if (TextUtils.isEmpty(m.getHandlerName()) || !handleState) {
+								defaultHandler.handler(m.getData(), responseFunction);
 							}
 						}
 					}
@@ -225,27 +230,18 @@ public class BridgeWebView extends WebView implements WebViewJavascriptBridge {
 		responseCallbacks.put(BridgeUtil.parseFunctionName(jsUrl), returnCallback);
 	}
 
-	/**
-	 * register handler,so that javascript can call it
-	 * 注册处理程序,以便javascript调用它
-	 * @param handlerName handlerName
-	 * @param handler BridgeHandler
-	 */
-	public void registerHandler(String handlerName, BridgeHandler handler) {
-		if (handler != null) {
-            // 添加至 Map<String, BridgeHandler>
-			messageHandlers.put(handlerName, handler);
-		}
-	}
-	
-	/**
-	 * unregister handler
-	 * 
-	 * @param handlerName
-	 */
-	public void unregisterHandler(String handlerName) {
-		if (handlerName != null) {
-			messageHandlers.remove(handlerName);
+	public void registerHandler(Object object) {
+		Class clazz = object.getClass();
+		String canonicalName = clazz.getCanonicalName();
+		Method[] methods = clazz.getDeclaredMethods();
+		for (Method method : methods) {
+			Annotation methodAnnotation = method.getAnnotation(JavascriptEnterInterface.class);
+			if (methodAnnotation != null) {
+				JavascriptEnterInterface javascriptEnterInterface = (JavascriptEnterInterface) methodAnnotation;
+				 Class<?>[] classes = method.getParameterTypes();
+				com.github.lzyzsd.jsbridge.model.InjectModel injectModel = new com.github.lzyzsd.jsbridge.model.InjectModel(canonicalName, method.getName(), classes);
+				jsMethodMap.put(javascriptEnterInterface.methodName(), injectModel);
+			}
 		}
 	}
 
